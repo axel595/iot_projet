@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Parking – Supervision</title>
+
+  <!-- MQTT -->
+  <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f4f4f4;
+      text-align: center;
+    }
+    .widget {
+      background: white;
+      padding: 20px;
+      margin: 20px auto;
+      width: 300px;
+      border-radius: 10px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+    .big {
+      font-size: 64px;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+
+<h1>🚗 Parking du Campus</h1>
+
+<div class="widget">
+  <h2>Places disponibles</h2>
+  <div id="places" class="big">--</div>
+</div>
+
+<div class="widget">
+  <h3>Dernier événement</h3>
+  <p id="event">---</p>
+  <p id="time">---</p>
+</div>
+
+<div class="widget" style="width: 600px;">
+  <h3>Évolution des places</h3>
+  <canvas id="placesChart"></canvas>
+</div>
+
+<script>
+  const TOTAL_PLACES = 19;
+
+  const client = mqtt.connect("ws://10.54.128.186:9001");
+
+  // ----- GRAPHE -----
+  const ctx = document.getElementById("placesChart").getContext("2d");
+  const placesChart = new Chart(ctx, {
+    type: "line",
+    data: {
+      labels: [],
+      datasets: [{
+        label: "Places disponibles",
+        data: [],
+        borderColor: "blue",
+        tension: 0.3
+      }]
+    },
+    options: {
+      scales: {
+        y: {
+          min: 0,
+          max: TOTAL_PLACES
+        }
+      }
+    }
+  });
+
+  // ----- MQTT -----
+  client.on("connect", () => {
+    console.log("Connecté au broker MQTT");
+    client.subscribe("parking/places");
+  });
+
+  client.on("message", (topic, message) => {
+    const data = JSON.parse(message.toString());
+
+    const places = data.places_disponibles;
+    const time = new Date(data.timestamp * 1000).toLocaleTimeString();
+
+    document.getElementById("places").innerText = places;
+    document.getElementById("event").innerText = data.event || "—";
+    document.getElementById("time").innerText = time;
+
+    // Mise à jour graphe
+    placesChart.data.labels.push(time);
+    placesChart.data.datasets[0].data.push(places);
+
+    if (placesChart.data.labels.length > 20) {
+      placesChart.data.labels.shift();
+      placesChart.data.datasets[0].data.shift();
+    }
+
+    placesChart.update();
+  });
+</script>
+
+</body>
+</html>
